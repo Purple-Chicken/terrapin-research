@@ -1,0 +1,16 @@
+# Rust build context
+target/
+**/*.rs.bk
+
+# Git and OS metadata
+.git/
+.gitignore
+.DS_Store
+
+# SSH keys and capture artifacts
+*.pem
+*.pub
+*.pcap
+
+*.md
+.env
