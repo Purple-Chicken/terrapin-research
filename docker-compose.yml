@@ -1,0 +1,51 @@
+version: '3.8'
+
+networks:
+  tp_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/24
+
+services:
+  # --- TARGET MULTI-SSH SERVER ---
+  target-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: tp-server
+    hostname: tp-server
+    networks:
+      tp_net:
+        ipv4_address: 10.5.0.10
+    tty: true
+
+  # --- ATTACKER (Kali Linux with MITM Capabilities) ---
+  attacker-kali:
+    image: kalilinux/kali-rolling:latest
+    container_name: tp-attack
+    hostname: redteam
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      tp_net:
+        ipv4_address: 10.5.0.20
+    command: >
+      bash -c "apt-get update && 
+               apt-get install -y dsniff dsniff-common tcpdump python3 python3-pip git net-tools && 
+               tail -f /dev/null"
+
+  # --- VULNERABLE CLIENT (Debian Client) ---
+  ssh-client:
+    image: debian:bullseye-slim  # Bullseye carries OpenSSH <9.6 (vulnerable to terrapin by default)
+    # image: rust:1.80-slim # Alternate image which comes with rust
+    container_name: tp-client
+    hostname: tp-client
+    networks:
+      tp_net:
+        ipv4_address: 10.5.0.30
+    command: >
+      bash -c "apt-get update && 
+               apt-get install -y git openssh-client net-tools iputils-ping && 
+               tail -f /dev/null"

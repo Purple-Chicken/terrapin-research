@@ -1,0 +1,92 @@
+# --- Stage 1: Build Custom Rust SSH Server ---
+FROM rust:1.80-slim AS builder
+WORKDIR /app
+COPY russh-server/ .
+RUN cargo build --release
+
+# --- Stage 2: Multi-SSH & Gitea Target Environment ---
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 1. Install dependencies, OpenSSH, Dropbear, Supervisor, Git, and SQLite
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssh-server \
+    dropbear \
+    supervisor \
+    git \
+    sqlite3 \
+    curl \
+    ca-certificates \
+    net-tools \
+    iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Create Gitea system user
+RUN useradd -m -s /bin/bash git
+
+# 3. Download Gitea v1.21.0 (vulnerable Go SSH implementation)
+RUN curl -L -o /usr/local/bin/gitea https://dl.gitea.com/gitea/1.21.0/gitea-1.21.0-linux-amd64 && \
+    chmod +x /usr/local/bin/gitea
+
+# 4. Configure OpenSSH (Port 22)
+RUN mkdir -p /var/run/sshd && \
+    echo 'root:TerrapinTest123!' | chpasswd && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# 5. Configure Dropbear host keys directory (Port 2222)
+RUN mkdir -p /etc/dropbear
+
+# 6. Copy compiled Rust binary from Stage 1 (Port 2223)
+COPY --from=builder /app/target/release/russh-server /usr/local/bin/russh-server
+
+# 7. Configure Gitea app.ini for Built-in SSH (Port 2224)
+RUN mkdir -p /etc/gitea /var/lib/gitea/custom/conf /var/lib/gitea/data /var/lib/gitea/log && \
+    chown -R git:git /etc/gitea /var/lib/gitea
+
+RUN echo '[server]\n\
+APP_DATA_PATH = /var/lib/gitea/data\n\
+DOMAIN = target-server\n\
+HTTP_PORT = 3000\n\
+ROOT_URL = http://target-server:3000/\n\
+DISABLE_SSH = false\n\
+START_SSH_SERVER = true\n\
+SSH_PORT = 2224\n\
+SSH_LISTEN_PORT = 2224\n\
+BUILTIN_SSH_SERVER_USER = git\n\
+\n\
+[database]\n\
+DB_TYPE = sqlite3\n\
+PATH = /var/lib/gitea/data/gitea.db\n\
+\n\
+[security]\n\
+INSTALL_LOCK = true\n\
+SECRET_KEY = terrapin_lab_secret_key\n\
+' > /etc/gitea/app.ini && \
+chown git:git /etc/gitea/app.ini
+
+# 8. Configure Supervisor to manage all 4 SSH daemons concurrently
+RUN mkdir -p /var/log/supervisor
+RUN echo '[supervisord]\n\
+nodaemon=true\n\
+logfile=/var/log/supervisor/supervisord.log\n\
+\n\
+[program:openssh]\n\
+command=/usr/sbin/sshd -D\n\
+\n\
+[program:dropbear]\n\
+command=/usr/sbin/dropbear -F -E -p 2222\n\
+\n\
+[program:russh]\n\
+command=/usr/local/bin/russh-server\n\
+\n\
+[program:gitea]\n\
+command=/usr/local/bin/gitea web --config /etc/gitea/app.ini\n\
+user=git\n\
+environment=HOME="/home/git",USER="git",GITEA_WORK_DIR="/var/lib/gitea"\n\
+' > /etc/supervisor/conf.d/supervisord.conf
+
+# Expose all SSH ports and Gitea Web UI
+EXPOSE 22 2222 2223 2224 3000
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
