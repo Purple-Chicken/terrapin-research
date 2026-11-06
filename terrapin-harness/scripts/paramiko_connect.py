@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Minimal paramiko-based SSH client, used as a second, independently
-implemented client stack to test the relay's injection primitive against
-(OpenSSH's client enforces some hardening unconditionally on the receive
-side as of 9.6; this checks whether a differently-implemented client
-behaves the same way)."""
 import sys
 
 import paramiko

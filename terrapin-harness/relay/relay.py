@@ -43,11 +43,6 @@ before any real truncation logic is built:
 Everything after NEWKEYS has been seen in both directions is opaque
 ciphertext to this relay and is spliced through raw, unparsed, using two
 forwarding threads.
-
-This script intentionally stops at the injection primitive. It is the
-"runnable baseline" harness; actual prefix *truncation* (deleting real
-messages from the channel) is the bounded-contribution work layered on top
-of this file for the Metasploit module -- see README.md.
 """
 
 from __future__ import annotations

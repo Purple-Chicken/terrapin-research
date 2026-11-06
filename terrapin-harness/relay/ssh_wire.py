@@ -1,13 +1,4 @@
 """
-Minimal SSH Binary Packet Protocol (BPP) helpers for the *unencrypted*
-handshake phase only (RFC 4253 ss 6, 7).
-
-This module intentionally does not implement key exchange, encryption, or
-MAC verification. It only needs to read/write/craft plaintext BPP frames
-before NEWKEYS, which is exactly the window the Terrapin attack's
-sequence-number manipulation (RcvIncrease / SndIncrease, Baeumer et al.
-2024, Sec. 4.1) operates in.
-
 Frame layout (RFC 4253 ss 6):
     uint32    packet_length   (length of everything below, bytes)
     byte      padding_length

@@ -4,13 +4,6 @@ Aggregate per-trial logs under logs/<target>/trial_*.jsonl into one results
 CSV, matching the experimental protocol's target x cipher x patched x
 manual/automated matrix.
 
-This is a skeleton for the full experiment matrix (item 4 of the project
-plan). It currently understands the two outcome events the harness emits
-today (handshake_complete / handshake_failed); as the Metasploit module and
-additional targets are added, extend OUTCOME_EVENTS and the trial metadata
-fields below rather than changing the CSV schema, so existing logs/results
-stay parseable.
-
 Usage:
     python3 scripts/aggregate_logs.py logs/ --out results/summary.csv
 
