@@ -84,4 +84,13 @@ russh-client --target 10.5.0.11:2223 --user lab --password "$LAB_SSH_PASSWORD" -
 
 The client binary on `tp-client` is russh 0.40.1. The patched server image also contains `/usr/local/bin/russh-client` built against russh 0.40.2. `Cargo.toml` pins 0.40.1; the patched image rewrites that pin before it compiles.
 
-Notes for a quick connectivity check live in `notes/client_commands.sh`, `notes/server_commands.sh`, and `notes/attacker_commands.sh`. Run each one inside the matching container.
+Notes for a quick connectivity check live in `notes/`. They are not copied into the images. Feed them to the matching container:
+
+```bash
+docker exec -i tp-client sh < notes/client_commands.sh
+docker exec -i tp-server sh < notes/server_commands.sh
+docker exec -i tp-server-patched sh < notes/server_commands.sh
+docker exec -i tp-attack sh < notes/attacker_commands.sh
+```
+
+Wait until `tp-attack` finishes its startup `apt-get` before running the attacker notes. `snapshot.debian.org` often returns 503/504; if a server image fails there, rerun that one Compose service. Completed layers stay cached.
