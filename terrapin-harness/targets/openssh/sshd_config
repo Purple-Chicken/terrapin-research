@@ -1,0 +1,9 @@
+Port 22
+ListenAddress 0.0.0.0
+HostKey /opt/openssh/etc/ssh_host_rsa_key
+HostKey /opt/openssh/etc/ssh_host_ed25519_key
+PubkeyAuthentication yes
+PasswordAuthentication no
+PermitRootLogin no
+StrictModes no
+Subsystem sftp /opt/openssh/libexec/sftp-server

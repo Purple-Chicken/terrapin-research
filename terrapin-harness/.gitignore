@@ -1,0 +1,20 @@
+# generated lab artifacts / secrets
+keys/*
+!keys/.gitkeep
+pcaps/*
+!pcaps/.gitkeep
+logs/*.jsonl
+logs/*.log
+logs/*.pcap
+logs/*.csv
+
+# local runtime/editor noise
+.capture.pid
+.capture.lastfile
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.DS_Store
+Thumbs.db

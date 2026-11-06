@@ -1,0 +1,15 @@
+{"direction": null, "event": "relay_start", "iso_time": "2026-11-05T05:25:06", "length": null, "msg_name": null, "msg_type": null, "note": "listen=127.0.0.1:2222 backend=127.0.0.1:2200 mode=passthrough strip_strict_kex=False", "ts": 1793856306.0481217}
+{"direction": null, "event": "accept", "iso_time": "2026-11-05T05:25:07", "length": null, "msg_name": null, "msg_type": null, "note": "client=127.0.0.1:39582", "ts": 1793856307.0099723}
+{"direction": null, "event": "connected", "iso_time": "2026-11-05T05:25:07", "length": null, "msg_name": null, "msg_type": null, "note": "backend=127.0.0.1:2200 mode=passthrough strip_strict_kex=False", "ts": 1793856307.0118494}
+{"direction": "client_to_router", "event": "banner", "iso_time": "2026-11-05T05:25:07", "length": null, "msg_name": null, "msg_type": null, "note": "SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.20", "ts": 1793856307.0119646}
+{"direction": "server_to_router", "event": "banner", "iso_time": "2026-11-05T05:25:07", "length": null, "msg_name": null, "msg_type": null, "note": "SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.20", "ts": 1793856307.0168557}
+{"direction": "client_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:07", "length": 1536, "msg_name": "SSH_MSG_KEXINIT", "msg_type": 20, "note": null, "ts": 1793856307.017223}
+{"direction": "server_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:07", "length": 1104, "msg_name": "SSH_MSG_KEXINIT", "msg_type": 20, "note": null, "ts": 1793856307.017978}
+{"direction": "client_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:07", "length": 1208, "msg_name": "UNKNOWN(30)", "msg_type": 30, "note": null, "ts": 1793856307.068017}
+{"direction": "server_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:07", "length": 1232, "msg_name": "UNKNOWN(31)", "msg_type": 31, "note": null, "ts": 1793856307.0812347}
+{"direction": "client_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:07", "length": 16, "msg_name": "SSH_MSG_NEWKEYS", "msg_type": 21, "note": null, "ts": 1793856307.1100156}
+{"direction": "server_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:07", "length": 16, "msg_name": "SSH_MSG_NEWKEYS", "msg_type": 21, "note": null, "ts": 1793856307.1101103}
+{"direction": null, "event": "handshake_complete", "iso_time": "2026-11-05T05:25:07", "length": null, "msg_name": null, "msg_type": null, "note": "NEWKEYS observed in both directions", "ts": 1793856307.1101463}
+{"direction": "client_to_server_raw", "event": "splice_closed", "iso_time": "2026-11-05T05:25:07", "length": 916, "msg_name": null, "msg_type": null, "note": null, "ts": 1793856307.17651}
+{"direction": "server_to_client_raw", "event": "splice_closed", "iso_time": "2026-11-05T05:25:07", "length": 1696, "msg_name": null, "msg_type": null, "note": null, "ts": 1793856307.1771932}
+{"direction": null, "event": "connection_closed", "iso_time": "2026-11-05T05:25:07", "length": null, "msg_name": null, "msg_type": null, "note": null, "ts": 1793856307.177365}

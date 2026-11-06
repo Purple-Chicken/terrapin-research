@@ -1,0 +1,13 @@
+{"direction": null, "event": "relay_start", "iso_time": "2026-11-05T05:25:08", "length": null, "msg_name": null, "msg_type": null, "note": "listen=127.0.0.1:2222 backend=127.0.0.1:2200 mode=inject_ignore strip_strict_kex=False", "ts": 1793856308.2793953}
+{"direction": null, "event": "accept", "iso_time": "2026-11-05T05:25:09", "length": null, "msg_name": null, "msg_type": null, "note": "client=127.0.0.1:39596", "ts": 1793856309.239799}
+{"direction": null, "event": "connected", "iso_time": "2026-11-05T05:25:09", "length": null, "msg_name": null, "msg_type": null, "note": "backend=127.0.0.1:2200 mode=inject_ignore strip_strict_kex=False", "ts": 1793856309.2413294}
+{"direction": "client_to_router", "event": "banner", "iso_time": "2026-11-05T05:25:09", "length": null, "msg_name": null, "msg_type": null, "note": "SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.20", "ts": 1793856309.2414284}
+{"direction": "server_to_router", "event": "banner", "iso_time": "2026-11-05T05:25:09", "length": null, "msg_name": null, "msg_type": null, "note": "SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.20", "ts": 1793856309.2464952}
+{"direction": "client_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:09", "length": 1536, "msg_name": "SSH_MSG_KEXINIT", "msg_type": 20, "note": null, "ts": 1793856309.246848}
+{"direction": "server_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:09", "length": 1104, "msg_name": "SSH_MSG_KEXINIT", "msg_type": 20, "note": null, "ts": 1793856309.2474113}
+{"direction": "router_to_client", "event": "inject", "iso_time": "2026-11-05T05:25:09", "length": 16, "msg_name": "SSH_MSG_IGNORE", "msg_type": 2, "note": "synthetic packet, not derived from relayed traffic", "ts": 1793856309.2491987}
+{"direction": "client_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:09", "length": 1208, "msg_name": "UNKNOWN(30)", "msg_type": 30, "note": null, "ts": 1793856309.3158073}
+{"direction": "server_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:09", "length": 1232, "msg_name": "UNKNOWN(31)", "msg_type": 31, "note": null, "ts": 1793856309.3300314}
+{"direction": "client_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:09", "length": 80, "msg_name": "UNKNOWN(1)", "msg_type": 1, "note": null, "ts": 1793856309.3301558}
+{"direction": "server_to_router", "event": "packet", "iso_time": "2026-11-05T05:25:09", "length": 16, "msg_name": "SSH_MSG_NEWKEYS", "msg_type": 21, "note": null, "ts": 1793856309.3301942}
+{"direction": null, "event": "handshake_failed", "iso_time": "2026-11-05T05:25:09", "length": null, "msg_name": null, "msg_type": null, "note": "[Errno 32] Broken pipe", "ts": 1793856309.3302348}

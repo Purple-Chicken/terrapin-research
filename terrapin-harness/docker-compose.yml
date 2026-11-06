@@ -1,0 +1,61 @@
+networks:
+  frontend:   # client-side "company LAN" segment
+  backend:    # server-side segment the router fronts for
+
+services:
+  # The MitM router. In the real attack scenario this is the box we
+  # compromise; for the baseline harness it simply relays traffic, with
+  # RELAY_MODE/STRIP_STRICT_KEX controlling which manipulations (if any)
+  # it performs. See README.md "Running the harness".
+  router:
+    build: ./relay
+    container_name: terrapin-router
+    environment:
+      LISTEN_HOST: 0.0.0.0
+      LISTEN_PORT: "2222"
+      BACKEND_HOST: openssh-target
+      BACKEND_PORT: "22"
+      RELAY_MODE: ${RELAY_MODE:-passthrough}
+      STRIP_STRICT_KEX: ${STRIP_STRICT_KEX:-false}
+      LOG_FILE: /logs/relay.jsonl
+    volumes:
+      - ./logs:/logs
+    networks:
+      - frontend
+      - backend
+    ports:
+      - "2222:2222"
+    depends_on:
+      - openssh-target
+
+  # Vulnerable-by-default OpenSSH target (pinned pre-9.6, see
+  # targets/openssh/Dockerfile). Only reachable via the router network,
+  # not published to the host, to force all traffic through the MitM.
+  openssh-target:
+    build: ./targets/openssh
+    container_name: terrapin-openssh-target
+    volumes:
+      - ./keys:/keys:ro
+    networks:
+      - backend
+
+  # Optional containerized attacker/client, useful for running the
+  # harness without needing an SSH client on the host. The host's own
+  # `ssh` can also be pointed at 127.0.0.1:2222 directly; see scripts/connect.sh.
+  attacker-client:
+    build: ./client
+    container_name: terrapin-client
+    volumes:
+      - ./keys:/keys:ro
+      - ./logs:/logs
+    networks:
+      - frontend
+    depends_on:
+      - router
+    tty: true
+    stdin_open: true
+
+# Additional targets (Dropbear, Gitea's bundled SSH server, Podman's SSH
+# API, the custom russh app) are added as services on `backend` the same
+# way openssh-target is, as the bounded-contribution work proceeds -- see
+# the project write-up, Section 3 ("Bounded-contribution plan").
