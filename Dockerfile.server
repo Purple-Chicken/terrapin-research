@@ -1,92 +1,107 @@
-# --- Stage 1: Build Custom Rust SSH Server ---
-FROM rust:1.80-slim AS builder
-WORKDIR /app
-COPY russh-server/ .
-RUN cargo build --release
+# Pinned SSH lab server.
+# The same file builds the vulnerable server and the patched twin.
+# Dates are snapshot.debian.org timestamps whose bookworm suite contains
+# the package versions below. Current Bookworm and Bullseye apt repositories
+# already carry the Terrapin backport, so version numbers such as OpenSSH 9.2
+# are not enough to identify a vulnerable build.
 
-# --- Stage 2: Multi-SSH & Gitea Target Environment ---
-FROM debian:bookworm-slim
+ARG DEBIAN_IMAGE=debian:bookworm-slim
+ARG RUST_IMAGE=rust:1.83-slim
 
-ENV DEBIAN_FRONTEND=noninteractive
+FROM ${DEBIAN_IMAGE} AS gitea-fetch
+ARG GITEA_VERSION=1.21.0
+ARG GITEA_SHA256=ff8aecf97f66f4a3ec55532f26716612457738b93f5f667124fdd6c59fddd735
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL --retry 5 --retry-delay 2 -o /tmp/gitea \
+        "https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-linux-amd64" \
+    && echo "${GITEA_SHA256}  /tmp/gitea" | sha256sum -c - \
+    && chmod 0755 /tmp/gitea
 
-# 1. Install dependencies, OpenSSH, Dropbear, Supervisor, Git, and SQLite
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssh-server \
-    dropbear \
-    supervisor \
-    git \
-    sqlite3 \
-    curl \
-    ca-certificates \
-    net-tools \
-    iproute2 \
-    && rm -rf /var/lib/apt/lists/*
+FROM ${RUST_IMAGE} AS rust-builder
+ARG RUSSH_VERSION=0.40.1
+ENV RUSSH_CRATE_VERSION=${RUSSH_VERSION}
+WORKDIR /src
+COPY russh-project/ ./
+RUN set -eux; \
+    if [ "$RUSSH_VERSION" != "0.40.1" ]; then \
+      sed -i "s/^russh = \"=0.40.1\"/russh = \"=${RUSSH_VERSION}\"/" Cargo.toml; \
+      cargo update -p russh --precise "$RUSSH_VERSION"; \
+      cargo build --release; \
+    else \
+      cargo build --release --locked; \
+    fi
 
-# 2. Create Gitea system user
-RUN useradd -m -s /bin/bash git
+FROM ${DEBIAN_IMAGE}
+ARG SNAPSHOT=20231115T000000Z
+ARG OPENSSH_VERSION=1:9.2p1-2+deb12u1
+ARG DROPBEAR_VERSION=2022.83-1
+ARG GITEA_VERSION=1.21.0
+ARG RUSSH_VERSION=0.40.1
+ARG EXPECT_STRICT_KEX=no
+ARG LAB_ROLE=vulnerable
 
-# 3. Download Gitea v1.21.0 (vulnerable Go SSH implementation)
-RUN curl -L -o /usr/local/bin/gitea https://dl.gitea.com/gitea/1.21.0/gitea-1.21.0-linux-amd64 && \
-    chmod +x /usr/local/bin/gitea
+ENV DEBIAN_FRONTEND=noninteractive \
+    LAB_SSH_PASSWORD=TerrapinTest123! \
+    LANG=C.UTF-8
 
-# 4. Configure OpenSSH (Port 22)
-RUN mkdir -p /var/run/sshd && \
-    echo 'root:TerrapinTest123!' | chpasswd && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN set -eux; \
+    rm -f /etc/apt/sources.list; \
+    rm -rf /etc/apt/sources.list.d/*; \
+    mkdir -p /etc/apt/preferences.d; \
+    printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/%s bookworm main\n' "$SNAPSHOT" > /etc/apt/sources.list; \
+    printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "8";\nAcquire::http::Timeout "90";\n' > /etc/apt/apt.conf.d/99snapshot; \
+    printf 'Package: *\nPin: origin "snapshot.debian.org"\nPin-Priority: 1001\n' > /etc/apt/preferences.d/snapshot; \
+    i=0; \
+    until apt-get update; do \
+      i=$((i+1)); \
+      if [ "$i" -ge 8 ]; then exit 1; fi; \
+      echo "apt-get update failed, retry ${i}"; \
+      sleep 5; \
+    done; \
+    apt-get install -y --no-install-recommends --allow-downgrades \
+      "openssh-server=${OPENSSH_VERSION}" \
+      "openssh-client=${OPENSSH_VERSION}" \
+      "openssh-sftp-server=${OPENSSH_VERSION}" \
+      "dropbear-bin=${DROPBEAR_VERSION}" \
+      supervisor \
+      git \
+      sqlite3 \
+      curl \
+      ca-certificates \
+      net-tools \
+      iproute2 \
+      iputils-ping \
+      passwd \
+    ; \
+    apt-mark hold openssh-server openssh-client openssh-sftp-server dropbear-bin; \
+    if [ "$EXPECT_STRICT_KEX" = "yes" ]; then \
+      grep -a -q 'kex-strict-s-v00@openssh.com' /usr/sbin/sshd; \
+      grep -a -q 'kex-strict-s-v00@openssh.com' /usr/sbin/dropbear; \
+    else \
+      if grep -a -q 'kex-strict' /usr/sbin/sshd; then echo "vulnerable sshd contains strict kex"; exit 1; fi; \
+      if grep -a -q 'kex-strict' /usr/sbin/dropbear; then echo "vulnerable dropbear contains strict kex"; exit 1; fi; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*; \
+    mkdir -p /run/sshd /etc/dropbear /etc/russh /etc/gitea /var/lib/gitea/data /var/lib/gitea/log /var/log/supervisor; \
+    id git >/dev/null 2>&1 || useradd -m -s /bin/sh git; \
+    printf 'role=%s\nsnapshot=%s\nopenssh=%s\ndropbear=%s\ngitea=%s\nrussh=%s\nstrict_kex=%s\n' \
+      "$LAB_ROLE" "$SNAPSHOT" "$OPENSSH_VERSION" "$DROPBEAR_VERSION" "$GITEA_VERSION" "$RUSSH_VERSION" "$EXPECT_STRICT_KEX" \
+      > /etc/lab-release
 
-# 5. Configure Dropbear host keys directory (Port 2222)
-RUN mkdir -p /etc/dropbear
+COPY --from=gitea-fetch /tmp/gitea /usr/local/bin/gitea
+COPY --from=rust-builder /src/target/release/russh-server /usr/local/bin/russh-server
+COPY --from=rust-builder /src/target/release/russh-client /usr/local/bin/russh-client
+COPY lab/entrypoint.sh /usr/local/bin/lab-entrypoint.sh
+COPY lab/gitea-seed.sh /usr/local/bin/gitea-seed.sh
+COPY lab/gitea/app.ini /etc/gitea/app.ini
+COPY lab/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY lab/sshd_lab.conf /etc/ssh/sshd_config.d/lab.conf
 
-# 6. Copy compiled Rust binary from Stage 1 (Port 2223)
-COPY --from=builder /app/target/release/russh-server /usr/local/bin/russh-server
+RUN chmod 0755 /usr/local/bin/gitea /usr/local/bin/russh-server /usr/local/bin/russh-client \
+      /usr/local/bin/lab-entrypoint.sh /usr/local/bin/gitea-seed.sh \
+    && chown -R git:git /etc/gitea /var/lib/gitea
 
-# 7. Configure Gitea app.ini for Built-in SSH (Port 2224)
-RUN mkdir -p /etc/gitea /var/lib/gitea/custom/conf /var/lib/gitea/data /var/lib/gitea/log && \
-    chown -R git:git /etc/gitea /var/lib/gitea
-
-RUN echo '[server]\n\
-APP_DATA_PATH = /var/lib/gitea/data\n\
-DOMAIN = target-server\n\
-HTTP_PORT = 3000\n\
-ROOT_URL = http://target-server:3000/\n\
-DISABLE_SSH = false\n\
-START_SSH_SERVER = true\n\
-SSH_PORT = 2224\n\
-SSH_LISTEN_PORT = 2224\n\
-BUILTIN_SSH_SERVER_USER = git\n\
-\n\
-[database]\n\
-DB_TYPE = sqlite3\n\
-PATH = /var/lib/gitea/data/gitea.db\n\
-\n\
-[security]\n\
-INSTALL_LOCK = true\n\
-SECRET_KEY = terrapin_lab_secret_key\n\
-' > /etc/gitea/app.ini && \
-chown git:git /etc/gitea/app.ini
-
-# 8. Configure Supervisor to manage all 4 SSH daemons concurrently
-RUN mkdir -p /var/log/supervisor
-RUN echo '[supervisord]\n\
-nodaemon=true\n\
-logfile=/var/log/supervisor/supervisord.log\n\
-\n\
-[program:openssh]\n\
-command=/usr/sbin/sshd -D\n\
-\n\
-[program:dropbear]\n\
-command=/usr/sbin/dropbear -F -E -p 2222\n\
-\n\
-[program:russh]\n\
-command=/usr/local/bin/russh-server\n\
-\n\
-[program:gitea]\n\
-command=/usr/local/bin/gitea web --config /etc/gitea/app.ini\n\
-user=git\n\
-environment=HOME="/home/git",USER="git",GITEA_WORK_DIR="/var/lib/gitea"\n\
-' > /etc/supervisor/conf.d/supervisord.conf
-
-# Expose all SSH ports and Gitea Web UI
 EXPOSE 22 2222 2223 2224 3000
-
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+ENTRYPOINT ["/usr/local/bin/lab-entrypoint.sh"]
