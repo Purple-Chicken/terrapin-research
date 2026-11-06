@@ -1,0 +1,56 @@
+# Vulnerable OpenSSH client from the Bullseye snapshot on 2023-11-15.
+# That archive still has openssh-client 1:8.4p1-5+deb11u2. The Terrapin
+# backport arrived in 1:8.4p1-5+deb11u3, so a current bullseye-slim apt
+# install is already patched.
+
+ARG DEBIAN_IMAGE=debian:bullseye-slim
+ARG RUST_IMAGE=rust:1.83-slim
+
+FROM ${RUST_IMAGE} AS rust-builder
+ENV RUSSH_CRATE_VERSION=0.40.1
+WORKDIR /src
+COPY russh-project/ ./
+RUN cargo build --release --locked --bin russh-client
+
+FROM ${DEBIAN_IMAGE}
+ARG SNAPSHOT=20231115T000000Z
+ARG OPENSSH_VERSION=1:8.4p1-5+deb11u2
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LAB_SSH_PASSWORD=TerrapinTest123! \
+    LANG=C.UTF-8
+
+RUN set -eux; \
+    rm -f /etc/apt/sources.list; \
+    rm -rf /etc/apt/sources.list.d/*; \
+    mkdir -p /etc/apt/preferences.d; \
+    printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/%s bullseye main\n' "$SNAPSHOT" > /etc/apt/sources.list; \
+    printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "8";\nAcquire::http::Timeout "90";\n' > /etc/apt/apt.conf.d/99snapshot; \
+    printf 'Package: *\nPin: origin "snapshot.debian.org"\nPin-Priority: 1001\n' > /etc/apt/preferences.d/snapshot; \
+    i=0; \
+    until apt-get update; do \
+      i=$((i+1)); \
+      if [ "$i" -ge 8 ]; then exit 1; fi; \
+      echo "apt-get update failed, retry ${i}"; \
+      sleep 5; \
+    done; \
+    apt-get install -y --no-install-recommends --allow-downgrades \
+      "openssh-client=${OPENSSH_VERSION}" \
+      git \
+      rsync \
+      curl \
+      ca-certificates \
+      net-tools \
+      iproute2 \
+      iputils-ping \
+    ; \
+    apt-mark hold openssh-client; \
+    if grep -a -q 'kex-strict' /usr/bin/ssh; then echo "vulnerable ssh client contains strict kex"; exit 1; fi; \
+    rm -rf /var/lib/apt/lists/*; \
+    printf 'role=vulnerable-client\nsnapshot=%s\nopenssh-client=%s\nrussh-client=0.40.1\nstrict_kex=no\n' \
+      "$SNAPSHOT" "$OPENSSH_VERSION" > /etc/lab-release
+
+COPY --from=rust-builder /src/target/release/russh-client /usr/local/bin/russh-client
+RUN chmod 0755 /usr/local/bin/russh-client
+
+CMD ["sleep", "infinity"]

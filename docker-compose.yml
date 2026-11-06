@@ -1,4 +1,6 @@
-version: '3.8'
+# Open bridge while the network is being tested. Package pins live in the
+# server and client images. Publishing those images for a third party is a
+# later step. The attacker container still installs its tools on start.
 
 networks:
   tp_net:
@@ -8,11 +10,20 @@ networks:
         - subnet: 10.5.0.0/24
 
 services:
-  # --- TARGET MULTI-SSH SERVER ---
   target-server:
     build:
       context: .
       dockerfile: Dockerfile.server
+      args:
+        LAB_ROLE: vulnerable
+        SNAPSHOT: "20231115T000000Z"
+        OPENSSH_VERSION: "1:9.2p1-2+deb12u1"
+        DROPBEAR_VERSION: "2022.83-1"
+        GITEA_VERSION: "1.21.0"
+        GITEA_SHA256: "ff8aecf97f66f4a3ec55532f26716612457738b93f5f667124fdd6c59fddd735"
+        RUSSH_VERSION: "0.40.1"
+        EXPECT_STRICT_KEX: "no"
+    image: tp-server:vulnerable
     container_name: tp-server
     hostname: tp-server
     networks:
@@ -20,32 +31,51 @@ services:
         ipv4_address: 10.5.0.10
     tty: true
 
-  # --- ATTACKER (Kali Linux with MITM Capabilities) ---
+  target-server-patched:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+      args:
+        LAB_ROLE: patched
+        SNAPSHOT: "20240215T000000Z"
+        OPENSSH_VERSION: "1:9.2p1-2+deb12u2"
+        DROPBEAR_VERSION: "2022.83-1+deb12u1"
+        GITEA_VERSION: "1.21.3"
+        GITEA_SHA256: "ccf6cc2077401e382bca0d000553a781a42c9103656bd33ef32bf093cca570eb"
+        RUSSH_VERSION: "0.40.2"
+        EXPECT_STRICT_KEX: "yes"
+    image: tp-server:patched
+    container_name: tp-server-patched
+    hostname: tp-server-patched
+    networks:
+      tp_net:
+        ipv4_address: 10.5.0.11
+    tty: true
+
   attacker-kali:
     image: kalilinux/kali-rolling:latest
     container_name: tp-attack
-    hostname: redteam
+    hostname: tp-attack
     cap_add:
       - NET_ADMIN
       - NET_RAW
     networks:
       tp_net:
         ipv4_address: 10.5.0.20
+    tty: true
     command: >
-      bash -c "apt-get update && 
-               apt-get install -y dsniff dsniff-common tcpdump python3 python3-pip git net-tools && 
+      bash -c "apt-get update &&
+               apt-get install -y dsniff tcpdump python3 python3-pip git net-tools iproute2 iputils-ping &&
                tail -f /dev/null"
 
-  # --- VULNERABLE CLIENT (Debian Client) ---
   ssh-client:
-    image: debian:bullseye-slim  # Bullseye carries OpenSSH <9.6 (vulnerable to terrapin by default)
-    # image: rust:1.80-slim # Alternate image which comes with rust
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    image: tp-client:vulnerable
     container_name: tp-client
     hostname: tp-client
     networks:
       tp_net:
         ipv4_address: 10.5.0.30
-    command: >
-      bash -c "apt-get update && 
-               apt-get install -y git openssh-client net-tools iputils-ping && 
-               tail -f /dev/null"
+    tty: true
