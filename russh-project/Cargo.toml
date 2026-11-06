@@ -1,0 +1,28 @@
+[package]
+name = "russh-project"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Lab SSH client and server pinned to a russh release"
+
+[[bin]]
+name = "russh-server"
+path = "src/bin/russh-server.rs"
+
+[[bin]]
+name = "russh-client"
+path = "src/bin/russh-client.rs"
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+# Upper bounds keep the graph on releases the rust:1.83 builder accepts.
+# Newer releases of these crates require Rust 1.85.
+base64ct = ">=1.6, <1.7"
+env_logger = "0.10"
+log = "0.4"
+russh = "=0.40.1"
+russh-keys = "=0.40.1"
+tokio = { version = ">=1.28, <1.54", features = ["io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
+tokio-util = ">=0.7, <0.7.20"
+zeroize = ">=1.5, <1.9"
