@@ -93,4 +93,10 @@ docker exec -i tp-server-patched sh < notes/server_commands.sh
 docker exec -i tp-attack sh < notes/attacker_commands.sh
 ```
 
-Wait until `tp-attack` finishes its startup `apt-get` before running the attacker notes. `snapshot.debian.org` often returns 503/504; if a server image fails there, rerun that one Compose service. Completed layers stay cached.
+Wait until `tp-attack` finishes its startup `apt-get` before running the attacker notes. `snapshot.debian.org` often returns `503 No healthy backends` even though the 2023 and 2024 snapshots are still published. Apt reports that as missing packages. The image build retries until the pinned OpenSSH version is visible. Build one service at a time so the images do not share one bad CDN moment:
+
+```bash
+docker compose build ssh-client
+docker compose build target-server
+docker compose build target-server-patched
+```

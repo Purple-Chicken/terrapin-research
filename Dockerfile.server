@@ -46,21 +46,32 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LAB_SSH_PASSWORD=TerrapinTest123! \
     LANG=C.UTF-8
 
+# snapshot.debian.org often answers 503 while the timestamped archive is still
+# published. apt-get update exits 0 in that case and the following install
+# reports every package as missing. Retry until the pinned OpenSSH version
+# is visible, then retry the deb download separately.
 RUN set -eux; \
     rm -f /etc/apt/sources.list; \
-    rm -rf /etc/apt/sources.list.d/*; \
-    mkdir -p /etc/apt/preferences.d; \
+    rm -rf /etc/apt/sources.list.d/* /var/lib/apt/lists/*; \
+    mkdir -p /etc/apt/preferences.d /var/lib/apt/lists/partial; \
     printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/%s bookworm main\n' "$SNAPSHOT" > /etc/apt/sources.list; \
-    printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "8";\nAcquire::http::Timeout "90";\n' > /etc/apt/apt.conf.d/99snapshot; \
+    printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "3";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/99snapshot; \
     printf 'Package: *\nPin: origin "snapshot.debian.org"\nPin-Priority: 1001\n' > /etc/apt/preferences.d/snapshot; \
     i=0; \
-    until apt-get update; do \
+    until apt-get update -o APT::Update::Error-Mode=any \
+      && apt-cache madison openssh-server | grep -F "$OPENSSH_VERSION"; do \
       i=$((i+1)); \
-      if [ "$i" -ge 8 ]; then exit 1; fi; \
-      echo "apt-get update failed, retry ${i}"; \
-      sleep 5; \
+      if [ "$i" -ge 8 ]; then \
+        echo "snapshot.debian.org did not return the bookworm index. HTTP 503 means the CDN has no healthy backend; the ${SNAPSHOT} archive is still published. Rerun this build."; \
+        exit 1; \
+      fi; \
+      echo "snapshot index unavailable, retry ${i}"; \
+      rm -rf /var/lib/apt/lists/*; \
+      mkdir -p /var/lib/apt/lists/partial; \
+      sleep $((15 * i)); \
     done; \
-    apt-get install -y --no-install-recommends --allow-downgrades \
+    i=0; \
+    until apt-get install -y --no-install-recommends --allow-downgrades \
       "openssh-server=${OPENSSH_VERSION}" \
       "openssh-client=${OPENSSH_VERSION}" \
       "openssh-sftp-server=${OPENSSH_VERSION}" \
@@ -74,7 +85,12 @@ RUN set -eux; \
       iproute2 \
       iputils-ping \
       passwd \
-    ; \
+    ; do \
+      i=$((i+1)); \
+      if [ "$i" -ge 6 ]; then exit 1; fi; \
+      echo "apt-get install failed, retry ${i}"; \
+      sleep $((15 * i)); \
+    done; \
     apt-mark hold openssh-server openssh-client openssh-sftp-server dropbear-bin; \
     if [ "$EXPECT_STRICT_KEX" = "yes" ]; then \
       grep -a -q 'kex-strict-s-v00@openssh.com' /usr/sbin/sshd; \

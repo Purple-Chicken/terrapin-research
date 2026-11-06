@@ -88,7 +88,7 @@ The Gitea binary is downloaded in a current Debian stage. The snapshot stages do
 Apt details that the Dockerfiles rely on:
 
 * Snapshot `Release` files are past `Valid-Until`, so apt uses `Acquire::Check-Valid-Until "false"` and `deb [check-valid-until=no]`.
-* `apt-get update` retries up to 8 times. `apt-get install` does not. `snapshot.debian.org` often returns 503 or 504.
+* `snapshot.debian.org` often returns `503 No healthy backends` while the timestamped archive is still published. `apt-get update` exits 0 anyway, and the next install then reports every package as missing. The Dockerfiles treat that as failure: they retry until `apt-cache madison` shows the pinned OpenSSH version, then retry `apt-get install` when a deb download fails. Build one Compose service at a time so the three images do not hit the CDN together.
 * The current slim images ship a newer `perl-base` than those snapshots. A pin of `snapshot.debian.org` at priority `1001`, plus `--allow-downgrades`, is what allows apt to install the snapshot's Perl.
 * OpenSSH and Dropbear packages are held. The image build greps the binaries: vulnerable images must not contain `kex-strict`; the patched image must contain `kex-strict-s-v00@openssh.com` in both `/usr/sbin/sshd` and `/usr/sbin/dropbear`.
 * `/etc/lab-release` records the role and the pins.
