@@ -43,6 +43,8 @@ chmod 640 /etc/gitea/app.ini
 su -p -s /bin/sh git -c 'HOME=/home/git GITEA_WORK_DIR=/var/lib/gitea gitea migrate --config /etc/gitea/app.ini'
 su -p -s /bin/sh git -c 'HOME=/home/git GITEA_WORK_DIR=/var/lib/gitea gitea admin user create --config /etc/gitea/app.ini --username lab --password "$LAB_SSH_PASSWORD" --email lab@example.local --must-change-password=false' \
   || echo "gitea user lab already exists"
-su -p -s /bin/sh git -c 'HOME=/home/git GITEA_WORK_DIR=/var/lib/gitea gitea admin user change-password --config /etc/gitea/app.ini --username lab --password "$LAB_SSH_PASSWORD" --must-change-password=false'
+# Gitea 1.21 accepts --must-change-password on user create only.
+# change-password rejects that flag, and set -e would exit before supervisord.
+su -p -s /bin/sh git -c 'HOME=/home/git GITEA_WORK_DIR=/var/lib/gitea gitea admin user change-password --config /etc/gitea/app.ini --username lab --password "$LAB_SSH_PASSWORD"'
 
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

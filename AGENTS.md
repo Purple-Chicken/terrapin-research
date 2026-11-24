@@ -142,6 +142,8 @@ Unix users `root` and `lab` exist on both servers and use the lab password. Open
 
 Gitea user `lab` (`lab@example.local`) is a Gitea account, separate from the unix user `lab`. The entrypoint creates it and sets the lab password. Registration is disabled. The seed creates private repository `lab/russh-project`. If `/etc/gitea/lab.pub` exists at seed time, that public key is installed on the Gitea user. The file is not in the image.
 
+Gitea 1.21 accepts `--must-change-password` on `admin user create` and rejects it on `admin user change-password`. The entrypoint must reach `exec supervisord`. That process is what keeps `tp-server` and `tp-server-patched` running. Compose does not set a server `command`.
+
 Clone URL once a key exists: `ssh://git@10.5.0.10:2224/lab/russh-project.git` (patched twin: `10.5.0.11`). The SSH login name is `git`, which is Gitea's builtin SSH user. The key belongs to Gitea user `lab`.
 
 Three key stores stay separate:
@@ -164,7 +166,7 @@ Three key stores stay separate:
 
 ## 8. What Is Not Done
 
-* `tp-server:vulnerable` and `tp-server:patched` have not been produced. The last `docker compose build` lost the vulnerable server's `apt-get install` to `snapshot.debian.org` 503/504 responses (`libfido2`, `krb5`, `procps`, `openssh-server`, `net-tools`, and others). Compose stopped the patched server on that failure. Neither server has been booted, so sshd, Dropbear, russh-in-container, Gitea health, and the seed are untested at runtime.
+* The server images build. A first boot reached Gitea user creation and then exited because `change-password --must-change-password` is not a 1.21 flag, so supervisord never started. sshd, Dropbear, russh-in-container, Gitea health, and the seed are still untested after that fix.
 * No SSH user keys, so OpenSSH, Dropbear, and Gitea pubkey login are not configured. Password login to OpenSSH and Dropbear is implemented and untested in the containers.
 * No patched OpenSSH client. Strict key exchange cannot be observed on a live session with the current `tp-client`.
 * `scanner/`, `docs/`, and the sequence-number proxy in `poc/` are not started. Do not add the proxy, a Metasploit module, or an interception procedure unless that work is explicitly requested. The network test below is connectivity only.
