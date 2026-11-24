@@ -80,6 +80,11 @@ RUN set -eux; \
       git \
       sqlite3 \
       curl \
+      wget \ 
+      nmap \ 
+      neovim \ 
+      netcat-traditional \
+      tshark \
       ca-certificates \
       net-tools \
       iproute2 \

@@ -50,6 +50,11 @@ RUN set -eux; \
       git \
       rsync \
       curl \
+      wget \
+      netcat-traditional \ 
+      neovim \ 
+      htop \ 
+      tshark \
       ca-certificates \
       net-tools \
       iproute2 \
