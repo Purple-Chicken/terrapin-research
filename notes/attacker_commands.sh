@@ -25,4 +25,6 @@ ettercap -T -q -M arp:remote /10.5.0.30// /10.5.0.11//
 
 ettercap -T -q -M arp:remote /10.5.0.30// /10.5.0.11//
 
+# To sniff an interface 
+tcpdump -i eth0 -A -l port <PORT>
 
