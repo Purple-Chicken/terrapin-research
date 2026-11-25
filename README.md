@@ -21,7 +21,15 @@ Client  Attacker  Patched  Vulnerable
 | `tp-attack` | `kalilinux/kali-rolling` | `10.5.0.20` | Tools installed on start. Hostname `tp-attack` |
 | `tp-client` | `tp-client:vulnerable` | `10.5.0.30` | Debian Bullseye OpenSSH client and `russh-client` 0.40.1 |
 
-Shells:
+## Quick Setup 
+
+Here is how you can quickly set up the demo environment: 
+```
+git clone https://github.com/Purple-Chicken/terrapin-research.git && cd terrapin-research 
+sudo docker compose up -d --build 
+```
+
+### Shells:
 
 ```bash
 docker exec -it tp-server /bin/sh
