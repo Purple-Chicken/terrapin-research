@@ -1,0 +1,58 @@
+# Roadmap item 5, "Detection" -- Suricata signature.
+#
+# STATUS: WRITTEN, NOT VALIDATED. No Suricata binary was available to
+# install or test against in this sandbox (apt-cache search returned
+# nothing for suricata/zeek, and raw packet capture itself does not work
+# here -- see ATTACK_README.md "Known gaps"). detect/terrapin_detector.py
+# is the actually-tested detector (see its own validation, run live
+# against a real attack and a real clean session, both correctly
+# classified). This file documents the equivalent signature-based
+# approach so it's a quick port once someone has a real Suricata install
+# to test it against -- treat every byte offset below as DERIVED FROM THE
+# RFC 4253 WIRE FORMAT, not independently confirmed against live Suricata
+# packet reassembly behavior, which can differ in edge cases (TCP
+# segmentation, retransmits) from this hand-written offset math.
+#
+# Fingerprint (same one terrapin_detector.py checks): an SSH_MSG_IGNORE
+# (type byte 0x02) appearing as a BPP packet within the first SSH stream
+# payload after the version banner, before the connection has had time to
+# complete NEWKEYS. Matching precisely "before NEWKEYS" in a single
+# signature (without the stateful, multi-message tracking
+# terrapin_detector.py does) is not really possible in one rule, so this
+# approximates it with a depth-bounded flowbit/flow:established combo:
+# flag an SSH_MSG_IGNORE appearing very early in the flow (within the
+# first few packets after the SSH banner exchange, offset-bounded),
+# which is exactly when a legitimate implementation never sends one.
+
+# Stage 1: tag a flow once we've seen the SSH version banner from the
+# server side, so stage 2 only looks at genuinely-SSH flows.
+alert tcp any 22 -> any any (msg:"TERRAPIN - SSH server banner seen"; \
+    content:"SSH-2.0-"; depth:8; flow:from_server,established; \
+    flowbits:set,ssh.banner_seen; flowbits:noalert; \
+    sid:9000001; rev:1;)
+
+# Stage 2: within that tagged flow, a BPP packet whose msg_type byte
+# (offset 5: 4-byte length + 1-byte padding_length) is 0x02
+# (SSH_MSG_IGNORE), seen early (low "stream_size" / low packet count
+# proxied here via flowbits + depth, since mature Suricata depth/distance
+# keywords only bound a single buffer, not "packet number in flow" --
+# a real deployment should pair this with a dataset/threshold rule
+# keyed on flow age, which needs testing this sandbox can't do).
+alert tcp any 22 -> any any (msg:"TERRAPIN - possible SSH_MSG_IGNORE injected pre-NEWKEYS"; \
+    flowbits:isset,ssh.banner_seen; \
+    content:"|02|"; offset:5; depth:1; \
+    flow:from_server,established; \
+    classtype:protocol-command-decode; \
+    reference:cve,2023-48795; \
+    reference:url,terrapin-attack.com; \
+    sid:9000002; rev:1;)
+
+# KNOWN LIMITATION, stated plainly: this rule WILL false-positive on a
+# packet that merely happens to have byte 0x02 at that fixed offset for
+# an unrelated reason (e.g. a KEXINIT packet whose padding_length happens
+# to place an unrelated 0x02 there is excluded by depth:1 + offset:5
+# targeting specifically the msg_type byte position, but a real
+# SSH_MSG_KEXINIT=20=0x14 won't collide here -- still, this has NOT been
+# run against real production SSH traffic to measure a false-positive
+# rate, which detect/terrapin_detector.py's stateful approach avoids by
+# tracking actual message types instead of a fixed byte offset).
