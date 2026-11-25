@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Roadmap item 2, "Full truncation": pairing the existing IGNORE injection
 with a compensating deletion of one server->client post-NEWKEYS message.
@@ -71,6 +70,23 @@ VISIBLE_LENGTH_CIPHERS = {
 # of cipher; relay.py checks the negotiated MAC name for that suffix too.
 # Empirically confirmed for both cases against real OpenSSH 9.6p1 -- see
 # the module docstring above.
+
+# AEAD ciphers whose length field is ALSO encrypted, by a second,
+# independently-keyed cipher instance -- chacha20-poly1305@openssh.com's
+# defining property, and the entire reason this module's blind-cipher
+# profile/calibration machinery exists. CRITICAL: for these ciphers, the
+# "negotiated" MAC name from the ordinary KEXINIT name-list intersection
+# is OPERATIONALLY MEANINGLESS -- OpenSSH's AEAD ciphers never use a
+# separate MAC at all, but the client and server still each advertise a
+# full mac_algorithms list and the relay's negotiate_algorithm() helper
+# still returns whatever name the two lists happen to share first (very
+# often umac-64-etm@openssh.com or hmac-sha2-256-etm@openssh.com, since
+# those usually sort near the top of OpenSSH's default MAC preference
+# list). That name must NOT be used to decide visibility for these
+# ciphers -- see the bug this caused, below.
+BLIND_LENGTH_AEAD_CIPHERS = {
+    "chacha20-poly1305@openssh.com",
+}
 
 # Trailing authentication-tag/MAC size, in bytes, appended AFTER the
 # declared length + payload for each "visible-length" pairing -- these
@@ -162,5 +178,26 @@ def length_is_visible_on_wire(cipher: str, mac: str) -> bool:
     aes128-gcm@openssh.com and aes128-ctr+hmac-sha2-256-etm@openssh.com
     both gave a plausible length field; aes128-cbc+hmac-sha2-256 (non-etm)
     did not -- the bytes at that offset were not a sane length at all.
+
+    REAL BUG, found live against this lab's actual OpenSSH 9.2p1 pairing
+    and fixed here: cipher is checked FIRST, before the MAC suffix. The
+    original version checked `mac.endswith("-etm@openssh.com")`
+    unconditionally, so a connection that negotiated
+    chacha20-poly1305@openssh.com alongside umac-64-etm@openssh.com (a
+    completely normal OpenSSH default-preference outcome -- the mac name
+    is operationally unused once an AEAD cipher wins, but the KEXINIT
+    name-list intersection still returns SOME name) was misclassified as
+    length-visible. relay.py then read chacha20's independently-encrypted
+    length field as if it were a real 4-byte length, got a huge bogus
+    value, and hung in recv_exact() waiting for bytes that would never
+    arrive -- surfacing downstream as `handshake_failed -- timed out` and
+    the victim seeing "Connection reset". See
+    BLIND_LENGTH_AEAD_CIPHERS above and
+    tests/test_truncation.py::test_chacha20_length_not_visible_despite_etm_mac_name,
+    which reproduces this exact pairing.
     """
-    return cipher in VISIBLE_LENGTH_CIPHERS or mac.endswith("-etm@openssh.com")
+    if cipher in BLIND_LENGTH_AEAD_CIPHERS:
+        return False
+    if cipher in VISIBLE_LENGTH_CIPHERS:
+        return True
+    return mac.endswith("-etm@openssh.com")
